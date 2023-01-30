@@ -36,11 +36,11 @@
 		<div class="container">
 
 <?php
-#var_dump($_POST['master_code']);
+# POSTで受け取ったソースコードをPHPの変数に保存
+# master
 $isset_master = false;
 if (empty($_POST['master_code'])) {
-	print "<p>empty master source.</p>";
-	# exit;
+	$master_code = "";
 } else {
 	$master_code = $_POST['master_code'];
 	$isset_master = true;
@@ -49,28 +49,32 @@ if (empty($_POST['master_code'])) {
 # slave
 $isset_slave = false;
 if (empty($_POST['slave_code'])) {
-	print "<p>empty slave source.</p>";
+	$slave_code = "";
 } else {
 	$slave_code = $_POST['slave_code'];
 	$isset_slave = true;
 }
 
 $t = date('Ymd-His');
+# 3文字のランダム文字列を生成
+$str = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPUQRSTUVWXYZ';
+$randstr = substr(str_shuffle($str), 0, 3);
 
 $path = './source/';
-$master_fname = $t.'_master.rb';
-$slave_fname = $t.'_slave.rb';
+$master_fname = $t.$randstr.'_master.rb';
+$slave_fname = $t.$randstr.'_slave.rb';
 
+# ソースコードをRubyファイルとして保存
 if (is_writeable($path)) {
 	if($isset_master) {
 		file_put_contents($path.$master_fname, $master_code);
-		print "<p>success! save master code.</p>";
+		# print "<p>success! save master code.</p>";
 		$cmd = 'chmod g+w '.$path.$master_fname;
 		exec($cmd, $opt);
 	}
 	if($isset_slave) {
 		file_put_contents($path.$slave_fname, $slave_code);
-		print "<p>success! save slave code.</p>";
+		# print "<p>success! save slave code.</p>";
 		$cmd = 'chmod g+w '.$path.$slave_fname;
 		exec($cmd, $opt);
 	}
@@ -79,46 +83,53 @@ if (is_writeable($path)) {
 	exit;
 }
 
-$cmd = 'mkdir ./compiled/'.$t;
+# 1つのフォルダの下にmasterとslaveを.mrbcとして配置
+$cmd = 'mkdir ./compiled/'.$t.$randstr;
 exec($cmd, $opt);
-$cmd = 'chmod g+w ./compiled/'.$t;
+$cmd = 'chmod g+w ./compiled/'.$t.$randstr;
 exec($cmd, $opt);
 
 # master program
 if($isset_master) {
-	$cmd = 'mrbc -o ./compiled/'.$t.'/master.mrbc -E '.$path.$master_fname;
+	$cmd = 'mrbc -o ./compiled/'.$t.$randstr.'/master.mrbc -E '.$path.$master_fname;
 	echo exec($cmd, $opt);
 	#print_r($opt);
 } else {
 	# use an empty file.
-	$cmd = 'cp ./compiled/master.mrbc ./compiled/'.$t.'/';
+	$cmd = 'cp ./compiled/master.mrbc ./compiled/'.$t.$randstr.'/';
 	exec($cmd, $opt);
 }
 
 # slave program
 if($isset_slave) {
-	$cmd = 'mrbc -o ./compiled/'.$t.'/slave.mrbc -E '.$path.$slave_fname;
+	$cmd = 'mrbc -o ./compiled/'.$t.$randstr.'/slave.mrbc -E '.$path.$slave_fname;
 	echo exec($cmd, $opt);
 	#print_r($opt);
 } else {
 	# use an empty file.
-	$cmd = 'cp ./compiled/slave.mrbc ./compiled/'.$t.'/';
+	$cmd = 'cp ./compiled/slave.mrbc ./compiled/'.$t.$randstr.'/';
 	exec($cmd, $opt);
 }
 
 # authority
-$cmd = 'chmod g+w ./compiled/'.$t.'/*';
+$isCompiled = false;
+$cmd = 'chmod g+w ./compiled/'.$t.$randstr.'/*';
 exec($cmd, $opt);
 
 #$t = '20221006-134537';	#
-$binfilename = './bin/mrbc.'.$t.'.bin';
+#$binfilename = './bin/mrbc.'.$t.'.bin';	#
 
-$cmd = 'mkspiffs -c ./compiled/'.$t.' -p 256 -b 4096 -s 0xF000 '.$binfilename;
+$binfilename = './bin/mrbc.'.$t.$randstr.'.bin';
+
+# バイナリファイル生成
+$cmd = 'mkspiffs -c ./compiled/'.$t.$randstr.' -p 256 -b 4096 -s 0xF000 '.$binfilename;
 exec($cmd, $opt);
 $cmd = 'chmod g+w '.$binfilename;
 exec($cmd, $opt);
-print "<p>compiled</p>";
+# print "<p>compiled</p>";
+$isCompiled = true;
 
+# わからないが、以下2行消すと動作しない
 $binFile = fopen($binfilename, "rb");
 fclose($binFile);
 
@@ -127,22 +138,81 @@ if ($data === false) {
 	print "<p>failed to read binary file</p>";
 	exit;
 }
+
+if(!$isCompiled) {
+echo <<< FAILCOMPILE
+<div class="columns" id="compileStatus">
+	<div class="column"></div>
+	<div class="column is-one-fifth notification is-danger is-light has-text-centered">
+	<!-- <button class="delete"></button> -->
+		<strong>コンパイル失敗..</strong>
+	</div>
+	<div class="column"></div>
+</div>
+FAILCOMPILE;
+	exit;
+}
+
+$fulMsgF = '<strong>Full</strong> <i class="fa-solid fa-file-pen" onclick="toggleDisplay(';
+$fulMsgB = ');"></i>';
+$empMsg = '<strong>Empty</strong> <i class="fa-regular fa-file"></i>';
+
+#$isset_master = true;	#
+#$isset_slave = false;	#
 ?>
 
-			<div class="columns" id="compileStatus">
-				<div class="column"></div>
-				<div class="column is-one-fifth notification is-info is-light has-text-centered">
-				<!-- <button class="delete"></button> -->
-					<strong>コンパイル完了！</strong>
+			<article class="message is-info" id="compiledMessage">
+				<div class="message-header">
+					<p>コンパイル完了！</p>
+					<button class="delete" aria-label="delete" onclick="closeMessage();"></button>
 				</div>
-				<div class="column"></div>
+				<div class="message-body">
+					<p>master: 
+<?php
+echo $isset_master ? $fulMsgF."'master'".$fulMsgB : $empMsg;
+?>
+					</p>
+					<p>slave: 
+<?php
+echo $isset_slave ? $fulMsgF."'slave'".$fulMsgB : $empMsg;
+?>
+					</p>
+				</div>
+			</article>
+			
+			<div class="columns">
+				<div class="column is-half">
+					<article id="masterCode" class="message is-dark" style="display: none">
+						<div class="message-body">
+							<strong>master</strong><br/>
+							<?php echo nl2br($master_code); ?>
+						</div>
+					</article>
+				</div>
+				
+				<div class="column is-half">
+					<article id="slaveCode" class="message is-dark" style="display: none">
+						<div class="message-body">
+							<strong>slave</strong><br/>
+							<?php echo nl2br($slave_code); ?>
+						</div>
+					</article>
+				</div>
 			</div>
-			<!--
-			<br />
-			<input type="text" id="writereg" value="0xe000" />
-			<input type="file" id="file" />
-			<br />
-			-->
+			
+			<div class="field is-grouped is-grouped-centered">
+				<p class="control">
+					<a href="./upload_file.php">
+						<button class="button is-info is-outlined">
+							<span class="icon is-small">
+								<i class="fa-solid fa-upload"></i>
+							</span>
+							<span>ファイルアップロード</span>
+						</button>
+					</a>
+				</p>
+			</div>
+			
 			<div class="field is-grouped is-grouped-centered">
 				<p class="control">
 					<button id="writebutton" class="button is-primary" onclick="writeBtn();">
@@ -162,7 +232,23 @@ if ($data === false) {
 					</button>
 				</p>
 			</div>
-			<!-- <input type="button" value="Write" onclick="writeBtn();" /> -->
+			
+			<div class="field is-grouped is-grouped-centered">
+				<p class="control has-icons-left">
+					<input id="team" name="team" class="input" placeholder="チーム名">
+					<span class="icon is-small is-left">
+						<i class="fa-solid fa-user-large"></i>
+					</span>
+				</p>
+				<p class="control">
+					<button id="sendbutton" class="button is-warning" onclick="submitCode();" disabled>
+						<span class="icon is-small">
+							<i class="fa-solid fa-paper-plane"></i>
+						</span>
+						<span>プログラム提出</span>
+					</button>
+				</p>
+			</div>
 			
 			<section class="section">
 			<div class="field">
@@ -191,9 +277,9 @@ if ($data === false) {
 				<p class="control">
 					<button class="button is-success is-outlined" onclick="stopScroll()">
 						<span class="icon is-small">
-							<i class="fa-solid fa-stop"></i>
+							<i class="fa-solid fa-pause"></i>
 						</span>
-						<span>Stop</span>
+						<span>Pause</span>
 					</button>
 				</p>
 				<p class="control">
@@ -213,7 +299,7 @@ if ($data === false) {
 					</button>
 				</p>
 				<p class="control">
-					<button class="button is-warning is-light" onclick="espDisconnect(true)">
+					<button class="button is-info is-outlined" onclick="espDisconnect(true)">
 						<span class="icon is-small">
 							<i class="fa-solid fa-eject"></i>
 						</span>
@@ -221,36 +307,38 @@ if ($data === false) {
 					</button>
 				</p>
 			</div>
-			<!-- <textarea cols="80" rows="30" id="outputArea" readonly></textarea> -->
 		</section>
 		</div>	<!-- container -->
 		
 		<footer class="footer">
 			<div class="content has-text-centered">
-				<p class="copy-right">Copyright &copy; kanicon 2022</p>
-				<!--
-				<p>
-					<strong>Bulma</strong> by <a href="https://jgthms.com">Jeremy Thomas</a>. The source code is licensed
-					<a href="http://opensource.org/licenses/mit-license.php">MIT</a>. The website content
-					is licensed <a href="http://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY NC SA 4.0</a>.
-				</p>
-				-->
+				<p class="copy-right">Copyright &copy; kanicon 2023</p>
 			</div>
 		</footer>
 		
-		<!-- <script src="https://github.com/tanakamasayuki/WebSerialEsptool/blob/master/espserial.js" charset="utf-8"></script> -->
-		<!-- <script type="javascript" src="https://tanakamasayuki.github.io/WebSerialEsptool/espserial.js" charset="utf-8"></script> -->
 		<script type="text/javascript" src="js/espserial.js" charset="utf-8"></script>
 		<script>
+			window.onload = function() {
+				const username = document.getElementById("team");
+				const button = document.getElementById("sendbutton");
+				username.addEventListener('keyup', function() {
+					const text = username.value;
+					console.log(text);
+					if(text) {
+						button.disabled = null;
+					} else {
+						button.disabled = "disabled";
+					}
+				})
+			}
+			
 			// 書き込み、Writeボタン
 			async function writeBtn() {
 				console.log("button clicked");
 				$('#writebutton').addClass('is-loading');
 				
-				//var file = document.getElementById('file').files[0];
 				var reg = '0x310000';
 				
-				// 参考：https://www.web-dev-qa-db-ja.com/ja/javascript/hex2bin%E3%82%92javascript%E3%81%A7%E3%83%97%E3%83%AD%E3%82%B0%E3%83%A9%E3%83%A0%E3%81%99%E3%82%8B%E6%96%B9%E6%B3%95%E3%81%AF%EF%BC%9F/939843794/
 				function hex2bin(hex) { 
 					var len = hex.length, result = "";
 					for(var i = 0; i < len; i += 2) {
@@ -264,8 +352,9 @@ if ($data === false) {
 				
 				// マイコン接続
 				try {
-					//const baudRate = Number(document.getElementById('baudRate').value);
-					const baudRate = 921600;
+					//const baudRate = 921600;
+					const baudRate = 115200;
+					console.log("baudrate: " + baudRate);
 					espSetOutput(addSerial);
 					await espConnect(baudRate);
 				} catch (error) {
@@ -278,35 +367,11 @@ if ($data === false) {
 					return;
 				}
 
-				/*
-				function binFileLoad(file) {
-					// 非同期処理の完了/失敗を表す
-					return new Promise((resolve, reject) => {
-						// ユーザコンピュータに保存されているファイルを非同期に読み取る
-						const reader = new FileReader();
-						reader.onload = () => {
-							// Promiseオブジェクトを返す
-							resolve(reader.result);
-						}
-						// Blob/File オブジェクトを読み込む
-						// 引数のfileを読み込む
-						reader.readAsBinaryString(file);
-					})
-				}*/
-
 				// ファイル読み込み
 				async function binLoad() {
 					let fileBin = [];
 					let fileReg = [];
-
-					/*
-					fileBin[0] = "";
-					fileReg[0] = parseInt('0x10000');
-					if (file) {
-						console.log("in file");
-						fileBin[0] = await binFileLoad(file);
-						fileReg[0] = parseInt(reg);
-					}*/
+					
 					fileBin[0] = b;
 					fileReg[0] = parseInt(reg);
 
@@ -364,8 +429,52 @@ if ($data === false) {
 			}
 			
 			// タブを閉じる
-			function windowClose(){
+			function windowClose() {
 				open('about: blank', '_self').close();    //一度再表示してからClose
+			}
+
+			function closeMessage() {
+				document.getElementById("compiledMessage").style.display = "none";
+			}
+			
+			// 送信されたソースコードをmaster/slaveそれぞれ表示/非表示
+			function toggleDisplay(name) {
+				if(document.getElementById(name + 'Code').style.display === 'none')
+					document.getElementById(name + 'Code').style.display = 'inline';
+				else
+					document.getElementById(name + 'Code').style.display = 'none';
+			}
+
+			// ソースコード提出
+			// submit/以下に保存される
+			function submitCode() {
+				var ele = document.createElement('form');
+				ele.action = './submit.php';
+				ele.method = 'post';
+				ele.setAttribute('target', '_blank');
+
+				const t = document.createElement('input');
+				t.value = document.getElementById("team").value;
+				t.name = 'team';
+				
+				var m = document.createElement('textarea');
+				m.value = `
+<?php echo empty($_POST['master_code']) ? null : $_POST['master_code'] ?>
+`;
+				m.name = 'master_code';
+				
+				var s = document.createElement('textarea');
+				s.value = `
+<?php echo empty($_POST['slave_code']) ? null : $_POST['slave_code'] ?>
+`;
+				s.name = 'slave_code';
+				
+				ele.appendChild(t);
+				ele.appendChild(m);
+				ele.appendChild(s);
+				document.body.appendChild(ele);
+				
+				ele.submit();
 			}
 		</script>
 	</body>
