@@ -52,9 +52,9 @@ async function espConnect(setBaudrate) {
 		espPort = await navigator.serial.requestPort();
 	}
 
-	if (setBaudrate < 115200) {
+	/*if (setBaudrate < 115200) {
 		setBaudrate = 115200;
-	}
+	}*/
 	espUploadBaudrate = setBaudrate;
 
 	await espPort.open({ baudRate: 115200 });
@@ -160,6 +160,7 @@ async function _espDownload(longDelay = false) {
 
 async function espDownload() {
 	// Retry
+	//for (let i = 0; i < 4; i++) {
 	for (let i = 0; i < 4; i++) {
 		let ret = await _espDownload(i & 1);
 		if (ret) {
@@ -593,7 +594,8 @@ async function espMemoryEnd(entrypoint = 0) {
 	}
 };
 
-async function espChangeBaudrate(newBaudrate = 750000, nowBaudrate = 115200) {
+// default newBaudrate = 750000
+async function espChangeBaudrate(newBaudrate = 115200, nowBaudrate = 115200) {
 	let data = new ArrayBuffer(2 * 4);
 	let dv = new DataView(data);
 
@@ -664,8 +666,21 @@ async function espFlash(binData = [], offset) {
 	await espFlashEnd(0x400BE598);
 
 	espOutput("\nFlash End\n");
-
+	console.log("flash end");
+	/*
+	espChipType = null;
+	for(;;){*/
 	await espDownload();
+	/*
+		let ret = await espSync();
+		if(ret) {
+			await espGetChipType();
+			if(espChipType){
+				console.log("in if");
+				break;
+			}
+		}
+	}*/
 	await espReset();
 	console.log("log: espflashed");
 }
