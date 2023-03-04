@@ -391,10 +391,9 @@ echo $isset_slave ? $fulMsgF."'slave'".$fulMsgB : $empMsg;
 			}
 			
 			async function showOutput() {
-				if (!espPort) {
-					addSerial('マイコンが接続されていません\n');
-					return;
-				}
+				espPort = await navigator.serial.requestPort();
+				await espPort.open({baudRate: 115200});
+
 				while (espPort.readable) {
                     const reader = espPort.readable.getReader();
 
